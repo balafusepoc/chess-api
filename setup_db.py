@@ -1,7 +1,7 @@
 import sqlite3
 
 champions = [
-    {"name": "Wilhelm Steinitz", "year": "1886", "country": "Austria"},
+    {"name": "1.Wilhelm Steinitz", "year": "1886", "country": "Austria"},
     {"name": "Emanuel Lasker", "year": "1894", "country": "Germany"},
     {"name": "José Raúl Capablanca", "year": "1921", "country": "Cuba"},
     {"name": "Alexander Alekhine", "year": "1927", "country": "Russia"},
