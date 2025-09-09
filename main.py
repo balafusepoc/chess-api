@@ -31,3 +31,13 @@ def get_champion(champion_id: int):
     if champion is None:
         return {"error": f"No champion found with id {champion_id}"}
     return dict(champion)
+
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+  CORSMiddleware,
+  allow_origins=["*"],  # use a restricted origin list in production
+  allow_credentials=True,
+  allow_methods=["*"],
+  allow_headers=["*"],
+)
