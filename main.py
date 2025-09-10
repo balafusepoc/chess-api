@@ -83,24 +83,40 @@ app.add_middleware(
 @app.post("/rawToJson")
 async def raw_to_json(request: Request) -> List[Dict]:
     """
-    Converts raw text input (3 possible formats) to structured JSON.
+    Converts raw text input (4 possible formats) to structured JSON.
+    - Existing format (po_number='..' and po_line_number=.. + Controlled Date)
+    - New Format 1 (PO Line table + Controlled Date)
+    - New Format 2 (PO xxxx line yyyy + Controlled Date)
+    - New Format 3 (PO Line Date table, each row has its own date)
     """
     body = await request.body()
     raw_text = body.decode("utf-8").strip()
 
-    # Extract Controlled Date
+    result = []
+
+    # Try Format 3 first (per-row dates)
+    # Example: 440468137    11    13-JUN-24
+    row_matches = re.findall(r"(\d+)\s+(\d+)\s+(\d{2}-[A-Z]{3}-\d{2})", raw_text, re.IGNORECASE)
+    if row_matches:
+        for po_number, po_line, row_date_str in row_matches:
+            row_date = datetime.strptime(row_date_str, "%d-%b-%y")
+            formatted_date = row_date.strftime("%Y/%m/%d 00:00:00")
+            result.append({
+                "PO_NUMBER": int(po_number),
+                "PO_LINE_NUMBER": int(po_line),
+                "INPUT_DATE": formatted_date
+            })
+        return result
+
+    # Extract Controlled Date (for other formats)
     date_match = re.search(r"Controlled Date:\s*(\d{2}-[A-Z]{3}-\d{2})", raw_text, re.IGNORECASE)
     if not date_match:
         return {"error": "Controlled Date not found"}
-
-    input_date_str = date_match.group(1)  # e.g. 13-JUN-24
+    input_date_str = date_match.group(1)
     input_date = datetime.strptime(input_date_str, "%d-%b-%y")
     formatted_date = input_date.strftime("%Y/%m/%d 00:00:00")
 
-    result = []
-
     # --- Case 1: Existing format ---
-    # po_number='440683670' and po_line_number=3
     matches = re.findall(r"po_number='(\d+)'\s*and\s*po_line_number=(\d+)", raw_text, re.IGNORECASE)
     if matches:
         for po_number, po_line in matches:
@@ -112,7 +128,6 @@ async def raw_to_json(request: Request) -> List[Dict]:
         return result
 
     # --- Case 2: New Format 1 ---
-    # PO    Line \n 440468137  11
     matches = re.findall(r"(\d+)\s+(\d+)", raw_text)
     if matches:
         for po_number, po_line in matches:
@@ -124,7 +139,6 @@ async def raw_to_json(request: Request) -> List[Dict]:
         return result
 
     # --- Case 3: New Format 2 ---
-    # PO 440468137 line 11, PO 440481317 line 23
     matches = re.findall(r"PO\s+(\d+)\s+line\s+(\d+)", raw_text, re.IGNORECASE)
     if matches:
         for po_number, po_line in matches:
