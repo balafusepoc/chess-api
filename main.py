@@ -127,3 +127,19 @@ def add_sid(item: SidIn):
     db.refresh(record)
     db.close()
     return {"id": record.id, "name": record.name}
+
+from typing import List
+
+@app.post("/sid/bulk")
+def add_sid_bulk(items: List[SidIn]):
+    db = SessionLocal()
+    records = []
+    for item in items:
+        record = Sid(name=item.name, country=item.country, year=item.year)
+        db.add(record)
+        records.append(record)
+    db.commit()
+    for record in records:
+        db.refresh(record)
+    db.close()
+    return [{"id": r.id, "name": r.name} for r in records]
