@@ -1,5 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from typing import List, Dict
+import re
 import sqlite3
+from datetime import datetime
 
 app = FastAPI()
 
@@ -41,3 +44,34 @@ app.add_middleware(
   allow_methods=["*"],
   allow_headers=["*"],
 )
+
+
+@app.post("/rawToJson")
+async def raw_to_json(request: Request) -> List[Dict]:
+    """
+    Converts raw text input to structured JSON.
+    """
+    body = await request.body()
+    raw_text = body.decode("utf-8").strip()
+
+    # Extract date
+    date_match = re.search(r"Controlled Date:\s*(\d{2}-[A-Z]{3}-\d{2})", raw_text)
+    if not date_match:
+        return {"error": "Controlled Date not found"}
+    
+    input_date_str = date_match.group(1)  # e.g. 13-JUN-24
+    input_date = datetime.strptime(input_date_str, "%d-%b-%y")
+    formatted_date = input_date.strftime("%Y/%m/%d 00:00:00")
+
+    # Extract PO lines
+    po_lines = re.findall(r"po_number='(\d+)'\s*and\s*po_line_number=(\d+)", raw_text)
+
+    result = []
+    for po_number, po_line in po_lines:
+        result.append({
+            "PO_NUMBER": int(po_number),
+            "PO_LINE_NUMBER": int(po_line),
+            "INPUT_DATE": formatted_date
+        })
+
+    return result
