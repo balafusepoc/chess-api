@@ -83,33 +83,59 @@ app.add_middleware(
 @app.post("/rawToJson")
 async def raw_to_json(request: Request) -> List[Dict]:
     """
-    Converts raw text input to structured JSON, preserving input order.
+    Converts raw text input (3 possible formats) to structured JSON.
     """
     body = await request.body()
     raw_text = body.decode("utf-8").strip()
 
-    # Extract date
-    date_match = re.search(r"Controlled Date:\s*(\d{2}-[A-Z]{3}-\d{2})", raw_text)
+    # Extract Controlled Date
+    date_match = re.search(r"Controlled Date:\s*(\d{2}-[A-Z]{3}-\d{2})", raw_text, re.IGNORECASE)
     if not date_match:
         return {"error": "Controlled Date not found"}
-    
+
     input_date_str = date_match.group(1)  # e.g. 13-JUN-24
     input_date = datetime.strptime(input_date_str, "%d-%b-%y")
     formatted_date = input_date.strftime("%Y/%m/%d 00:00:00")
 
     result = []
-    # Process line by line to keep the order
-    for line in raw_text.splitlines():
-        po_match = re.search(r"po_number='(\d+)'\s*and\s*po_line_number=(\d+)", line)
-        if po_match:
-            po_number, po_line = po_match.groups()
+
+    # --- Case 1: Existing format ---
+    # po_number='440683670' and po_line_number=3
+    matches = re.findall(r"po_number='(\d+)'\s*and\s*po_line_number=(\d+)", raw_text, re.IGNORECASE)
+    if matches:
+        for po_number, po_line in matches:
             result.append({
                 "PO_NUMBER": int(po_number),
                 "PO_LINE_NUMBER": int(po_line),
                 "INPUT_DATE": formatted_date
             })
+        return result
 
-    return result
+    # --- Case 2: New Format 1 ---
+    # PO    Line \n 440468137  11
+    matches = re.findall(r"(\d+)\s+(\d+)", raw_text)
+    if matches:
+        for po_number, po_line in matches:
+            result.append({
+                "PO_NUMBER": int(po_number),
+                "PO_LINE_NUMBER": int(po_line),
+                "INPUT_DATE": formatted_date
+            })
+        return result
+
+    # --- Case 3: New Format 2 ---
+    # PO 440468137 line 11, PO 440481317 line 23
+    matches = re.findall(r"PO\s+(\d+)\s+line\s+(\d+)", raw_text, re.IGNORECASE)
+    if matches:
+        for po_number, po_line in matches:
+            result.append({
+                "PO_NUMBER": int(po_number),
+                "PO_LINE_NUMBER": int(po_line),
+                "INPUT_DATE": formatted_date
+            })
+        return result
+
+    return {"error": "No PO/Line data found"}
 
 @app.get("/sid")
 def get_sid():
